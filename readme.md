@@ -190,8 +190,9 @@ It fails because there is no fluentd running neither in docker or localhost.
 #### Add fluentd container
 
 To add fluentd we will add three things to make it work:
+
 ##### 1. Add Fluentd Docker file
-We will create another docker image because we will install an elasticsearch plugin already in place.
+We will create extend fluentd docker image because we will install an elasticsearch plugin.
 All fluentd files are placed in [`/fluentd` folder](fluentd)
 ```
 # fluentd/Dockerfile
@@ -223,8 +224,44 @@ We will start with a simple behaviour, just print all logs coming from the micro
     @type stdout
 </match>
 ```
-More info for plugins or configuration at [official documentation]().
+More info for plugins or configuration at [official documentation](https://docs.fluentd.org/).
 ##### 3. Add Fluentd to docker-compose  
+
+Let's add fluentd container to our docker compose file:
+```yaml
+version: '3'
+services:
+  micro-service:
+    build: ./micro-service
+    ports:
+      - "3333:8080"
+    environment:
+      - FLUENTD_HOST=fluentd
+      - FLUENTD_PORT=24224
+    networks:
+      - microservice-network
+
+  fluentd:
+    build: ./fluentd
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    networks:
+      - microservice-network
+
+networks:
+  microservice-network: 
+    name: microservice_network
+    driver: bridge # we have specified it, but this is the default driver
+```
+
+Here we have introduced [`networks`](https://docs.docker.com/network/), docker provide this feature to connect different containers together.
+We are using the default [`bridge` driver](https://docs.docker.com/network/bridge/), in a nutshell, a bridge network will 
+expose to all containers connected all ports to each other and automatic DNS resolution between containers. 
+
+
 
 
 
