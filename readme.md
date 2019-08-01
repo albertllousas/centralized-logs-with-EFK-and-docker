@@ -1,4 +1,29 @@
 # Dockerized spring-boot app with EFK stack for centralized logging
+- [Dockerized spring-boot app with EFK stack for centralized logging](#dockerized-spring-boot-app-with-efk-stack-for-centralized-logging)
+  * [Description](#description)
+  * [Pre-requisites](#pre-requisites)
+  * [Create a simple spring boot app](#create-a-simple-spring-boot-app)
+  * [Execute the app without docker](#execute-the-app-without-docker)
+  * [Execute the app with docker](#execute-the-app-with-docker)
+    + [Dockerize the app](#dockerize-the-app)
+  * [Execute the app with docker-compose](#execute-the-app-with-docker-compose)
+  * [Add EFK stack (elastic-search, fluentd, kibana) to centralize the logs](#add-efk-stack--elastic-search--fluentd--kibana--to-centralize-the-logs)
+    + [Change the micro-service to send logs to fluentd server](#change-the-micro-service-to-send-logs-to-fluentd-server)
+      - [Add logback fluentd appender to the microservice](#add-logback-fluentd-appender-to-the-microservice)
+      - [Add fluentd](#add-fluentd)
+        * [Add Fluentd Docker file](#add-fluentd-docker-file)
+        * [Add Fluentd config file](#add-fluentd-config-file)
+        * [Add Fluentd to docker-compose](#add-fluentd-to-docker-compose)
+        * [Check fluentd receive our logs](#check-fluentd-receive-our-logs)
+      - [Add elastic-search](#add-elastic-search)
+        * [Add elastic-search container](#add-elastic-search-container)
+        * [Forward logs from fluentd to elasticsearch](#forward-logs-from-fluentd-to-elasticsearch)
+        * [Check elasticsearch receive our logs](#check-elasticsearch-receive-our-logs)
+      - [Add kibana](#add-kibana)
+        * [Add kibana container](#add-kibana-container)
+        * [Check kibana reads our logs](#check-kibana-reads-our-logs)
+        
+## Description
 
 This project presents how to dockerize an spring-boot app and run it together with EFK (elastic-search, fluentd, kibana)
 stack as a different containers in order to learn how docker and docker-compose work.
@@ -14,6 +39,7 @@ a hello-world message to the client and write it also in the application log. Lo
 In our case, it will receive logs from the microservice format and forward/post them to elasticsearch.
 - `elastic-search`: Search engine and a full-text, distributed NoSQL database.
 - `kibana`: Front-end for elastic-search.
+
 
 ## Pre-requisites
 
