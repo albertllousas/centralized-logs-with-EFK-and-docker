@@ -507,11 +507,89 @@ More info about elastic search endpoints in the [official docs](https://www.elas
 
 ##### Add kibana container
 
+```yaml
+version: '3'
+services:
+  micro-service:
+    image: micro-service
+    build: ./micro-service
+    ports:
+      - "3333:8080"
+    environment:
+      - FLUENTD_HOST=fluentd
+      - FLUENTD_PORT=24224
+    networks:
+      - microservice-network
+    depends_on:
+      - fluentd
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.2.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+#      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - elasticsearch
+    expose:
+      - "9200"
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.2.0
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    networks:
+      - elasticsearch
+    depends_on:
+      - elasticsearch
 
+  fluentd:
+    build: ./fluentd
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    networks:
+      - microservice-network
+      - elasticsearch
+    depends_on:
+      - elasticsearch
 
+networks:
+  microservice-network:
+    driver: bridge
+  elasticsearch:
+    driver: bridge
 
+volumes:
+  esdata:
+    driver: local
+```
+##### Check kibana reads our logs
+Now rerun all the containers:
+```bash
+docker-compose-up
+```
+Then open our browser:
+```bash
+open http://localhost:5601
+```
+If everything worked as expected, we will see kibana but we won't see any logs :( , no worries we have to create an index pattern,
+let's click on settings -> index patterns and create one that match oor index:
 
+<p align="center">
+  <img src="img/create-index-kibana.png">
+</p>
 
+We have to create and index that fit to us, for example `logstash-*`.
 
+Then, finally if we go to kibana discover section, we will se our logs!!!:
 
-
+<p align="center">
+   <img src="img/discover-kibana.png">
+</p>
