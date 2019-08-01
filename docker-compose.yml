@@ -10,16 +10,26 @@ services:
       - FLUENTD_PORT=24224
     networks:
       - microservice-network
-#  elasticsearch:
-#    image: docker.elastic.co/elasticsearch/elasticsearch:6.3.2
-#    ports:
-#      - "9200:9200"
-#    networks:
-#      - elasticsearch
-#    expose:
-#      - "9200"
+    depends_on:
+      - fluentd
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.2.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+#      - xpack.security.enabled=false
+#      - bootstrap.memory_lock=true
+#      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - elasticsearch
+    expose:
+      - "9200"
 #  kibana:
-#    image: docker.elastic.co/kibana/kibana:6.3.2
+#    image: docker.elastic.co/kibana/kibana:7.2.0
 #    environment:
 #      ELASTICSEARCH_URL: http://elasticsearch:9200
 #    ports:
@@ -40,8 +50,16 @@ services:
       - "24224:24224/udp"
     networks:
       - microservice-network
+      - elasticsearch
+    depends_on:
+      - elasticsearch
 
 networks:
   microservice-network:
-    name: microservice_network
     driver: bridge
+  elasticsearch:
+    driver: bridge
+
+volumes:
+  esdata:
+    driver: local

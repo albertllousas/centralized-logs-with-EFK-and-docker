@@ -5,7 +5,7 @@
     <property name="FLUENTD_PORT" value="${FLUENTD_PORT:-24224}"/>
     <appender name="FLUENT" class="ch.qos.logback.more.appenders.DataFluentAppender">
         <!-- Check tag and label fluentd info: https://docs.fluentd.org/configuration/config-file-->
-        <tag>microservice.helloworld.access</tag>
+        <tag>service.helloworld.access</tag>
         <label>normal</label>
         <remoteHost>${FLUENTD_HOST}</remoteHost>
         <port>${FLUENTD_PORT}</port>

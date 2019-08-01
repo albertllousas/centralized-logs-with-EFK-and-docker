@@ -187,19 +187,35 @@ ERROR o.f.logger.sender.RawSocketSender - org.fluentd.logger.sender.RawSocketSen
 ```
 It fails because there is no fluentd running neither in docker or localhost.
 
-#### Add fluentd container
+#### Add fluentd
 
 To add fluentd we will add three things to make it work:
 
-##### 1. Add Fluentd Docker file
+##### Add Fluentd Docker file
 We will create extend fluentd docker image because we will install an elasticsearch plugin.
 All fluentd files are placed in [`/fluentd` folder](fluentd)
 ```
-# fluentd/Dockerfile
-FROM fluent/fluentd:v0.12-debian
-RUN ["gem", "install", "fluent-plugin-elasticsearch", "--no-rdoc", "--no-ri", "--version", "1.9.2"]
+FROM fluent/fluentd:v1.6-1
+
+# Use root account to use apk
+USER root
+
+# install elasticsearch plugin
+RUN apk add --no-cache --update --virtual .build-deps \
+        sudo build-base ruby-dev \
+ && sudo gem install fluent-plugin-elasticsearch \
+ && sudo gem sources --clear-all \
+ && apk del .build-deps \
+ && rm -rf /tmp/* /var/tmp/* /usr/lib/ruby/gems/*/cache/*.gem
+
+COPY fluent.conf /fluentd/etc/
+COPY entrypoint.sh /bin/
+
+USER fluent
 ```
-##### 2. Add Fluentd config file
+Check [docker hub](https://hub.docker.com/r/fluent/fluentd/) page for more info.
+
+##### Add Fluentd config file
 Now, we need to add a [configuration file](https://docs.fluentd.org/configuration) to control the input and output behavior of Fluentd.
 We will start with a simple behaviour, just print all logs coming from the microservice to the stdout in the fluentd host:
 ```
@@ -225,7 +241,7 @@ We will start with a simple behaviour, just print all logs coming from the micro
 </match>
 ```
 More info for plugins or configuration at [official documentation](https://docs.fluentd.org/).
-##### 3. Add Fluentd to docker-compose  
+##### Add Fluentd to docker-compose  
 
 Let's add fluentd container to our docker compose file:
 ```yaml
@@ -253,16 +269,243 @@ services:
 
 networks:
   microservice-network: 
-    name: microservice_network
+    # name: microservice_network custom naming obnly available in version 3.5
     driver: bridge # we have specified it, but this is the default driver
 ```
+One problem we face here, is how to enable microservice container to send logs to fluentd container, even more, we don't want to know
+about IPs, we just want to send logs to from microservice to a host name `fluentd`.
+ 
+To reach the previous requirement, here we have introduced [`networks`](https://docs.docker.com/network/), docker provide this feature to connect different containers together.
+We are using the default [`bridge` driver](https://docs.docker.com/network/bridge/), in a nutshell, a bridge network will expose to all containers connected all ports to each other and automatic DNS resolution between containers. 
 
-Here we have introduced [`networks`](https://docs.docker.com/network/), docker provide this feature to connect different containers together.
-We are using the default [`bridge` driver](https://docs.docker.com/network/bridge/), in a nutshell, a bridge network will 
-expose to all containers connected all ports to each other and automatic DNS resolution between containers. 
+##### Check fluentd receive our logs
 
+Let's check we it works:
+```bash
+docker-compose up &
+```
+Wait to docker containers to start and call the microservice endpoint:
+```bash
+curl -i http://localhost:3333/hello-world
+```
+Now, if everything worked as expected, we should see both containers logging the message:
+```bash
+micro-service_1  | 16:40:43.507 [http-nio-8080-exec-2] INFO  c.e.demo.MicroServiceController - Hello world!
+fluentd_1        | 2019-07-28 16:40:43 +0000 microservice.helloworld.access.normal: {"msg":"[INFO] Hello world!\n","level":"INFO","logger":"com.example.demo.MicroServiceController","thread":"http-nio-8080-exec-2","message":"Hello world!"}
+```
 
+#### Add elastic-search
 
+##### Add elastic-search container
+
+First let's add the new container with elastic search, in that case we will add the image directly to docker compose yaml,
+we will get one of the lasts version from [https://www.docker.elastic.co/](https://www.docker.elastic.co/):
+```yaml
+version: '3'
+services:
+  micro-service:
+    image: micro-service
+    build: ./micro-service
+    ports:
+      - "3333:8080"
+    environment:
+      - FLUENTD_HOST=fluentd
+      - FLUENTD_PORT=24224
+    networks:
+      - microservice-network
+    depends_on:
+      - fluentd
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.2.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - elasticsearch
+    expose:
+      - "9200"
+
+  fluentd:
+    build: ./fluentd
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    networks:
+      - microservice-network
+      - elasticsearch
+    depends_on:
+      - elasticsearch
+
+networks:
+  microservice-network:
+    driver: bridge
+  elasticsearch:
+    driver: bridge
+
+volumes:
+  esdata:
+    driver: local
+```
+
+Here we have introduced a new network for elastic search, now fluentd and elastic can resolve names and communicate each other.
+
+We also introduced a `volumes`, these are the mechanisms for persisting data generated by and used by Docker containers, if we don't add them to elastic
+search, our data would be erased when the container was killed.
+
+More info about volumes at: 
+- [https://docs.docker.com/storage/volumes/](https://docs.docker.com/storage/volumes/)
+- [https://docs.docker.com/compose/compose-file/](https://docs.docker.com/compose/compose-file/) in volumes section
+
+Now to check it worked:
+```bash
+docker-compose up &
+```
+Then:
+```bash
+curl -i http://localhost:9200
+HTTP/1.1 200 OK
+content-type: application/json; charset=UTF-8
+content-length: 509
+```
+You should get something like this:
+```json
+{
+  "name" : "elasticsearch",
+  "cluster_name" : "docker-cluster",
+  "cluster_uuid" : "HeF-rpMlS66FC4zZrTPz5w",
+  "version" : {
+    "number" : "7.2.0",
+    "build_flavor" : "default",
+    "build_type" : "docker",
+    "build_hash" : "508c38a",
+    "build_date" : "2019-06-20T15:54:18.811730Z",
+    "build_snapshot" : false,
+    "lucene_version" : "8.0.0",
+    "minimum_wire_compatibility_version" : "6.8.0",
+    "minimum_index_compatibility_version" : "6.0.0-beta1"
+  },
+  "tagline" : "You Know, for Search"
+}
+```
+We can also check that a volume has been created:
+```bash
+docker volume ls
+ 
+ DRIVER              VOLUME NAME
+ local               funwithdocker_esdata
+```
+And even check the volume details:
+```bash
+docker volume inspect funwithdocker_esdata
+```
+
+##### Forward logs from fluentd to elasticsearch
+
+Now, we have to tell fluentd to forward logs that we are getting from the microservice to elastic, to do that we will
+modify the fluentd config file and add [elasticsearch plugin](https://github.com/uken/fluent-plugin-elasticsearch).
+
+```
+<source>
+@type forward
+port 24224
+bind 0.0.0.0
+</source>
+
+<match microservice.**>
+  @type copy
+  <store>
+    @type elasticsearch
+    host elasticsearch
+    include_timestamp true
+    port 9200
+    logstash_format true
+    flush_interval 5s
+  </store>
+  <store>
+    @type stdout
+  </store>
+</match>
+```
+
+##### Check elasticsearch receive our logs
+
+To check it works as expected:
+
+1. start the containers `docker-compose up &`
+2. hit the microservice in order to generate a log `curl -i http://localhost:3333/hello-world`
+3. now a new index should have been generated in kibana with our messages stored:
+```bash
+curl -i http://localhost:9200/_cat/indices\?v
+```
+As a response we will get a text like this:
+```text
+health status index               uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   logstash-2019.07.29 IW2t-CR2Qlyl2LC6oVMuZQ   1   1        110            0     97.8kb         97.8kb
+```
+4. Then lets pick up the index name `logstash-2019.07.29` and query the last doc inserted:
+```bash
+curl -X GET "http://localhost:9200/logstash-2019.07.29/_search?pretty=true" -H 'Content-Type: application/json' -d'
+{
+  "query": { "match_all": {} },
+  "size": 1,
+  "sort": { "@timestamp": "desc"}
+}
+'
+```
+Et voilà ! Our logs are now stored in elastic search:
+
+```json
+{
+  "took" : 3,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : null,
+    "hits" : [
+      {
+        "_index" : "logstash-2019.07.29",
+        "_type" : "_doc",
+        "_id" : "TFSaPWwB6Kpgmv7_JfvT",
+        "_score" : null,
+        "_source" : {
+          "msg" : "[INFO] Hello world!\n",
+          "level" : "INFO",
+          "logger" : "com.example.demo.MicroServiceController",
+          "thread" : "http-nio-8080-exec-4",
+          "message" : "Hello world!",
+          "@timestamp" : "2019-07-29T12:00:04.000000000+00:00"
+        },
+        "sort" : [
+          1564401604000
+        ]
+      }
+    ]
+  }
+}
+```
+Now we have a centralized logs, but access to them with http actions is not pretty useful, so let's add the missing thing, kibana,
+a front-end for elasticsearch.
+
+More info about elastic search endpoints in the [official docs](https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html).
+
+#### Add kibana
+
+##### Add kibana container
 
 
 
