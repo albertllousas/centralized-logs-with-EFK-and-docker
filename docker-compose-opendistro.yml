@@ -1,0 +1,76 @@
+version: '3'
+services:
+  micro-service:
+    image: micro-service
+    build: ./micro-service
+    ports:
+      - "3333:8080"
+    environment:
+      - FLUENTD_HOST=fluentd
+      - FLUENTD_PORT=24224
+    networks:
+      - microservice-network
+    depends_on:
+      - fluentd
+  elasticsearch:
+    image: amazon/opendistro-for-elasticsearch:1.12.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      # - opendistro_security.disabled=true
+#      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - esdata-opendistro:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - elasticsearch
+    expose:
+      - "9200"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536 # maximum number of open files for the Elasticsearch user, set to at least 65536 on modern systems
+        hard: 65536
+  kibana:
+    image: amazon/opendistro-for-elasticsearch-kibana:1.12.0
+    environment:
+      ELASTICSEARCH_HOSTS: https://elasticsearch:9200
+      ELASTICSEARCH_URL: https://elasticsearch:9200
+      ELASTICSEARCH_USERNAME: admin
+      ELASTICSEARCH_PASSWORD: admin
+    ports:
+      - "5601:5601"
+    expose:
+      - "5601"
+    networks:
+      - elasticsearch
+    depends_on:
+      - elasticsearch
+
+  fluentd:
+    build: ./fluentd
+    volumes:
+      - ./fluentd/conf/fluent-opendistro.conf:/fluentd/etc/fluent.conf
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    networks:
+      - microservice-network
+      - elasticsearch
+    depends_on:
+      - elasticsearch
+
+networks:
+  microservice-network:
+    driver: bridge
+  elasticsearch:
+    driver: bridge
+
+volumes:
+  esdata-opendistro:
+    driver: local
+  gradle-cache:
+    external: true

@@ -1,0 +1,11 @@
+#! /bin/bash -e
+
+cd $(dirname $0)/..
+
+PROJECT_NAME=${1:-"centralized-logs-with-efk-and-docker"}
+
+DOCKER_COMPOSE="docker-compose-opendistro.yml"
+
+docker-compose -p ${PROJECT_NAME} -f ${DOCKER_COMPOSE} build --force-rm
+
+docker-compose -p ${PROJECT_NAME} -f ${DOCKER_COMPOSE} up -d
