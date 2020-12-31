@@ -59,3 +59,5 @@ networks:
 volumes:
   esdata:
     driver: local
+  gradle-cache:
+    external: true
