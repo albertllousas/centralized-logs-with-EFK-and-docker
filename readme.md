@@ -1,28 +1,30 @@
 # Dockerized spring-boot app with EFK stack for centralized logging
 - [Dockerized spring-boot app with EFK stack for centralized logging](#dockerized-spring-boot-app-with-efk-stack-for-centralized-logging)
-  * [Description](#description)
-  * [Pre-requisites](#pre-requisites)
-  * [Create a microservice](#create-a-microservice)
-  * [Execute the app without docker](#execute-the-app-without-docker)
-  * [Execute the app with docker](#execute-the-app-with-docker)
-    + [Dockerize the app](#dockerize-the-app)
-  * [Execute the app with docker-compose](#execute-the-app-with-docker-compose)
-  * [Change the micro-service to send logs to fluentd server](#change-the-micro-service-to-send-logs-to-fluentd-server)
-    + [Add logback fluentd appender to the microservice](#add-logback-fluentd-appender-to-the-microservice)
-  * [Add fluentd](#add-fluentd)
-    + [Add Fluentd Docker file](#add-fluentd-docker-file)
-    + [Add Fluentd config file](#add-fluentd-config-file)
-    + [Add Fluentd to docker-compose](#add-fluentd-to-docker-compose)
-    + [Check fluentd receive our logs](#check-fluentd-receive-our-logs)
-  * [Add elastic-search](#add-elastic-search)
-    + [Add elastic-search container](#add-elastic-search-container)
-    + [Forward logs from fluentd to elasticsearch](#forward-logs-from-fluentd-to-elasticsearch)
-    + [Check elasticsearch receive our logs](#check-elasticsearch-receive-our-logs)
-  * [Add kibana](#add-kibana)
-    + [Add kibana container](#add-kibana-container)
-    + [Check kibana reads our logs](#check-kibana-reads-our-logs)
-  * [Scale out microservices](#scale-out-microservices)
-        
+  - [Description](#description)
+  - [Pre-requisites](#pre-requisites)
+  - [Development](#development)
+  - [Configuration](#configuration)
+    - [Create a microservice](#create-a-microservice)
+    - [Execute the app without docker](#execute-the-app-without-docker)
+    - [Execute the app with docker](#execute-the-app-with-docker)
+      - [Dockerize the app](#dockerize-the-app)
+    - [Execute the app with docker-compose](#execute-the-app-with-docker-compose)
+    - [Change the micro-service to send logs to fluentd server](#change-the-micro-service-to-send-logs-to-fluentd-server)
+      - [Add logback fluentd appender to the microservice](#add-logback-fluentd-appender-to-the-microservice)
+    - [Add fluentd](#add-fluentd)
+      - [Add Fluentd Docker file](#add-fluentd-docker-file)
+      - [Add Fluentd config file](#add-fluentd-config-file)
+      - [Add Fluentd to docker-compose](#add-fluentd-to-docker-compose)
+      - [Check fluentd receive our logs](#check-fluentd-receive-our-logs)
+    - [Add elastic-search](#add-elastic-search)
+      - [Add elastic-search container](#add-elastic-search-container)
+      - [Forward logs from fluentd to elasticsearch](#forward-logs-from-fluentd-to-elasticsearch)
+      - [Check elasticsearch receive our logs](#check-elasticsearch-receive-our-logs)
+    - [Add kibana](#add-kibana)
+      - [Add kibana container](#add-kibana-container)
+      - [Check kibana reads our logs](#check-kibana-reads-our-logs)
+  - [Scale out microservices](#scale-out-microservices)
+
 ## Description
 
 This project presents how to dockerize an spring-boot app and run it together with EFK (elastic-search, fluentd, kibana)
@@ -45,7 +47,16 @@ In our case, it will receive logs from the microservice format and forward/post 
 
 `docker` and `java8`
 
-## Create a microservice
+## Development
+
+Setup a EFK env in local
+
+```bash
+auto/start-local-efk
+```
+
+## Configuration
+### Create a microservice
 
 The application is a super simple "micro-service" made in java 8 and spring-boot that exposes one simple endpoint:
 ```bash
@@ -59,7 +70,7 @@ Hello world!%
 ```
 Check the code in [app folder](./micro-service).
 
-## Execute the app without docker
+### Execute the app without docker
 Build and run the micro-service:
 ```bash
 cd micro-service
@@ -68,11 +79,11 @@ java -jar build/libs/micro-service-0.0.1-SNAPSHOT.jar &
 open http://localhost:8080/hello-world
 ```
 
-## Execute the app with docker  
+### Execute the app with docker
 
 [Docker_CheatSheet](https://www.docker.com/sites/default/files/Docker_CheatSheet_08.09.2016_0.pdf)
 
-### Dockerize the app
+#### Dockerize the app
 Build the micro-service artifact (from project root folder):
 ```bash
 (cd micro-service && ./gradlew build)
@@ -127,7 +138,7 @@ If you want to access to the container sh console:
 docker exec -it ms /bin/sh
 ```
 
-## Execute the app with docker-compose
+### Execute the app with docker-compose
 
 Now that we have a docker image with the microservice up and running what we want is to add more containers and make them to communicate,
 simulating a real environment.
@@ -165,9 +176,9 @@ micro-service_1  | 16:40:43.507 [http-nio-8080-exec-2] INFO  c.e.demo.MicroServi
 Now, let's configure all the EFK (elasticsearch, fluentd, kibana ) stack to centralize the logs.
 
 
-## Change the micro-service to send logs to fluentd server
+### Change the micro-service to send logs to fluentd server
 
-### Add logback fluentd appender to the microservice
+#### Add logback fluentd appender to the microservice
 
 Now we need to config the application to send logs to fluentd data collector.
 
@@ -221,11 +232,11 @@ ERROR o.f.logger.sender.RawSocketSender - org.fluentd.logger.sender.RawSocketSen
 ```
 It fails because there is no fluentd running neither in docker or localhost.
 
-## Add fluentd
+### Add fluentd
 
 To add fluentd we will add three things to make it work:
 
-### Add Fluentd Docker file
+#### Add Fluentd Docker file
 We will create extend fluentd docker image because we will install an elasticsearch plugin.
 All fluentd files are placed in [`/fluentd` folder](fluentd)
 ```
@@ -249,7 +260,7 @@ USER fluent
 ```
 Check [docker hub](https://hub.docker.com/r/fluent/fluentd/) page for more info.
 
-### Add Fluentd config file
+#### Add Fluentd config file
 Now, we need to add a [configuration file](https://docs.fluentd.org/configuration) to control the input and output behavior of Fluentd.
 We will start with a simple behaviour, just print all logs coming from the microservice to the stdout in the fluentd host:
 ```
@@ -275,7 +286,7 @@ We will start with a simple behaviour, just print all logs coming from the micro
 </match>
 ```
 More info for plugins or configuration at [official documentation](https://docs.fluentd.org/).
-### Add Fluentd to docker-compose  
+#### Add Fluentd to docker-compose
 
 Let's add fluentd container to our docker compose file:
 ```yaml
@@ -312,7 +323,7 @@ about IPs, we just want to send logs to from microservice to a host name `fluent
 To reach the previous requirement, here we have introduced [`networks`](https://docs.docker.com/network/), docker provide this feature to connect different containers together.
 We are using the default [`bridge` driver](https://docs.docker.com/network/bridge/), in a nutshell, a bridge network will expose to all containers connected all ports to each other and automatic DNS resolution between containers. 
 
-### Check fluentd receive our logs
+#### Check fluentd receive our logs
 
 Let's check we it works:
 ```bash
@@ -328,9 +339,9 @@ micro-service_1  | 16:40:43.507 [http-nio-8080-exec-2] INFO  c.e.demo.MicroServi
 fluentd_1        | 2019-07-28 16:40:43 +0000 microservice.helloworld.access.normal: {"msg":"[INFO] Hello world!\n","level":"INFO","logger":"com.example.demo.MicroServiceController","thread":"http-nio-8080-exec-2","message":"Hello world!"}
 ```
 
-## Add elastic-search
+### Add elastic-search
 
-### Add elastic-search container
+#### Add elastic-search container
 
 First let's add the new container with elastic search, in that case we will add the image directly to docker compose yaml,
 we will get one of the lasts version from [https://www.docker.elastic.co/](https://www.docker.elastic.co/):
@@ -439,7 +450,7 @@ And even check the volume details:
 docker volume inspect funwithdocker_esdata
 ```
 
-### Forward logs from fluentd to elasticsearch
+#### Forward logs from fluentd to elasticsearch
 
 Now, we have to tell fluentd to forward logs that we are getting from the microservice to elastic, to do that we will
 modify the fluentd config file and add [elasticsearch plugin](https://github.com/uken/fluent-plugin-elasticsearch).
@@ -467,7 +478,7 @@ bind 0.0.0.0
 </match>
 ```
 
-### Check elasticsearch receive our logs
+#### Check elasticsearch receive our logs
 
 To check it works as expected:
 
@@ -537,9 +548,9 @@ a front-end for elasticsearch.
 
 More info about elastic search endpoints in the [official docs](https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html).
 
-## Add kibana
+### Add kibana
 
-### Add kibana container
+#### Add kibana container
 
 ```yaml
 version: '3'
@@ -604,7 +615,7 @@ volumes:
   esdata:
     driver: local
 ```
-### Check kibana reads our logs
+#### Check kibana reads our logs
 Now rerun all the containers:
 ```bash
 docker-compose-up
@@ -631,4 +642,3 @@ Then, finally if we go to kibana discover section, we will se our logs!!!:
 ## Scale out microservices
 
 `TODO`
-

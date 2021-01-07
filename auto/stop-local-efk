@@ -1,0 +1,7 @@
+#! /bin/bash -e
+
+cd $(dirname $0)/..
+
+PROJECT_NAME=${1:-"centralized-logs-with-efk-and-docker"}
+
+docker-compose -p ${PROJECT_NAME} down

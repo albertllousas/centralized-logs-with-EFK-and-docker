@@ -1,0 +1,8 @@
+#! /bin/bash -e
+
+cd $(dirname $0)/..
+
+docker-compose down --remove-orphans
+
+docker volume create --name gradle-cache > /dev/null
+docker-compose build
